@@ -81,12 +81,13 @@ loader.load(
 function prepareAnimation(vrm: VRM) {
   currentMixer = new THREE.AnimationMixer(vrm.scene);
 
-  const quatA = new THREE.Quaternion(0.0, 0.0, 0.0, 1.0);
-  const quatB = new THREE.Quaternion(0.0, 0.0, 0.0, 1.0);
-  quatB.setFromEuler(new THREE.Euler(0.0, 0.0, 0.25 * Math.PI));
+  const quatA = new THREE.Quaternion();
+  const quatB = new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(-0.08 * Math.PI, 0.0, 0.0)
+  );
 
-  const armTrack = new THREE.QuaternionKeyframeTrack(
-    vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.LeftUpperArm).name +
+  const headTrack = new THREE.QuaternionKeyframeTrack(
+    vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Head).name +
       ".quaternion", // name
     [0.0, 0.5, 1.0], // times
     [...quatA.toArray(), ...quatB.toArray(), ...quatA.toArray()] // values
@@ -100,7 +101,7 @@ function prepareAnimation(vrm: VRM) {
     [0.0, 1.0, 0.0] // values
   );
 
-  const clip = new THREE.AnimationClip("blink", 1.0, [armTrack, blinkTrack]);
+  const clip = new THREE.AnimationClip("blink", 1.0, [headTrack, blinkTrack]);
   const action = currentMixer.clipAction(clip);
   action.play();
 }
