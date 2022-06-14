@@ -5,15 +5,44 @@ import { VRM, VRMUtils, VRMSchema } from "@pixiv/three-vrm";
 
 import "./style.css";
 
+declare var webkitSpeechRecognition: any;
+
+function startRecognition() {
+  const recog = new webkitSpeechRecognition();
+  recog.interimResults = true;
+  recog.lang = "ja-JP";
+  recog.continuous = true;
+  recog.addEventListener("soundend", () => {
+    console.log("onsoundend");
+  });
+  recog.onresult = (ev: any) => {
+    for (const result of ev.results) {
+      console.log(result[0].transcript);
+    }
+  };
+  recog.onend = (ev: any) => {
+    console.log("onend", ev);
+  };
+  recog.start();
+}
+
 // renderer
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 document.querySelector("#app")!.appendChild(renderer.domElement);
-document.querySelector("#controls button")!.addEventListener("click", (ev) => {
-  // prepareAnimation(currentVrm!);
-  currentAction?.reset().play();
-});
+document
+  .querySelector("#controls button#move")!
+  .addEventListener("click", (ev) => {
+    // prepareAnimation(currentVrm!);
+    currentAction?.reset().play();
+  });
+
+document
+  .querySelector("#controls button#recog")!
+  .addEventListener("click", (ev) => {
+    startRecognition();
+  });
 
 // camera
 const camera = new THREE.PerspectiveCamera(
@@ -47,8 +76,8 @@ const loader = new GLTFLoader();
 loader.crossOrigin = "anonymous";
 loader.load(
   // URL of the VRM you want to load
+  // "/models/masawada.vrm",
   "/models/AvatarSample_B.vrm",
-
   // called when the resource is loaded
   async (gltf) => {
     // calling these functions greatly improves the performance
@@ -62,9 +91,21 @@ loader.load(
 
     currentVrm = vrm;
 
-    vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Hips).rotation.y =
+    // https://scrapbox.io/ke456memo/%2323_%E3%83%96%E3%83%A9%E3%82%A6%E3%82%B6%E4%B8%8A%E3%81%A7VRM%E3%81%AE%E8%BA%AB%E9%95%B7%E3%82%84%E3%83%9D%E3%83%AA%E3%82%B4%E3%83%B3%E6%95%B0%E3%82%92%E7%A2%BA%E8%AA%8D%E3%81%A7%E3%81%8D%E3%82%8B%E3%83%84%E3%83%BC%E3%83%AB%E3%81%AE%E9%96%8B%E7%99%BA#602f3bac7ccd070000b0e3ff
+    const eyePositionY = vrm.firstPerson?.firstPersonBone.getWorldPosition(
+      new THREE.Vector3()
+    ).y!;
+
+    controls.target.set(0.0, eyePositionY, 0.0);
+    camera.position.set(0.0, eyePositionY, 1.0);
+
+    controls.update();
+
+    vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Hips)!.rotation.y =
       Math.PI;
     vrm.springBoneManager!.reset();
+
+    vrm.lookAt!.target! = camera;
 
     prepareAnimation(vrm);
   },
@@ -91,7 +132,7 @@ function prepareAnimation(vrm: VRM) {
   );
 
   const headTrack = new THREE.QuaternionKeyframeTrack(
-    vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Head).name +
+    vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Head)!.name +
       ".quaternion", // name
     [0.0, 0.45, 0.9], // times
     [...quatA.toArray(), ...quatB.toArray(), ...quatA.toArray()] // values
