@@ -9,7 +9,11 @@ import "./style.css";
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
-document.body.appendChild(renderer.domElement);
+document.querySelector("#app")!.appendChild(renderer.domElement);
+document.querySelector("#controls button")!.addEventListener("click", (ev) => {
+  // prepareAnimation(currentVrm!);
+  currentAction?.reset().play();
+});
 
 // camera
 const camera = new THREE.PerspectiveCamera(
@@ -18,12 +22,12 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   20.0
 );
-camera.position.set(0.0, 1.0, 5.0);
+camera.position.set(0.0, 1.3, 1.0);
 
 // camera controls
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.screenSpacePanning = true;
-controls.target.set(0.0, 1.0, 0.0);
+controls.target.set(0.0, 1.3, 0.0);
 controls.update();
 
 // scene
@@ -34,8 +38,9 @@ const light = new THREE.DirectionalLight(0xffffff);
 light.position.set(1.0, 1.0, 1.0).normalize();
 scene.add(light);
 
-let currentVrm: VRM | undefined = undefined;
-let currentMixer: THREE.AnimationMixer | undefined = undefined;
+let currentVrm: VRM | undefined;
+let currentMixer: THREE.AnimationMixer | undefined;
+let currentAction: THREE.AnimationAction | undefined;
 
 // gltf and vrm
 const loader = new GLTFLoader();
@@ -45,24 +50,23 @@ loader.load(
   "/models/AvatarSample_B.vrm",
 
   // called when the resource is loaded
-  (gltf) => {
+  async (gltf) => {
     // calling these functions greatly improves the performance
     VRMUtils.removeUnnecessaryVertices(gltf.scene);
     VRMUtils.removeUnnecessaryJoints(gltf.scene);
 
     // generate VRM instance from gltf
-    VRM.from(gltf).then((vrm) => {
-      console.log(vrm);
-      scene.add(vrm.scene);
+    const vrm = await VRM.from(gltf);
+    console.log(vrm);
+    scene.add(vrm.scene);
 
-      currentVrm = vrm;
+    currentVrm = vrm;
 
-      vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Hips).rotation.y =
-        Math.PI;
-      vrm.springBoneManager!.reset();
+    vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Hips).rotation.y =
+      Math.PI;
+    vrm.springBoneManager!.reset();
 
-      prepareAnimation(vrm);
-    });
+    prepareAnimation(vrm);
   },
 
   // called while loading is progressing
@@ -89,7 +93,7 @@ function prepareAnimation(vrm: VRM) {
   const headTrack = new THREE.QuaternionKeyframeTrack(
     vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Head).name +
       ".quaternion", // name
-    [0.0, 0.5, 1.0], // times
+    [0.0, 0.45, 0.9], // times
     [...quatA.toArray(), ...quatB.toArray(), ...quatA.toArray()] // values
   );
 
@@ -97,13 +101,15 @@ function prepareAnimation(vrm: VRM) {
     vrm.blendShapeProxy!.getBlendShapeTrackName(
       VRMSchema.BlendShapePresetName.Blink
     )!, // name
-    [0.0, 0.5, 1.0], // times
+    [0.0, 0.45, 0.9], // times
     [0.0, 1.0, 0.0] // values
   );
 
-  const clip = new THREE.AnimationClip("blink", 1.0, [headTrack, blinkTrack]);
+  const clip = new THREE.AnimationClip("blink", 0.9, [headTrack, blinkTrack]);
   const action = currentMixer.clipAction(clip);
+  action.setLoop(THREE.LoopOnce, 1);
   action.play();
+  currentAction = action;
 }
 
 // helpers
@@ -120,13 +126,10 @@ function animate() {
 
   const deltaTime = clock.getDelta();
 
-  if (currentVrm) {
-    currentVrm.update(deltaTime);
-  }
-
-  if (currentMixer) {
-    currentMixer.update(deltaTime);
-  }
+  // まばたき
+  currentVrm?.update(deltaTime);
+  // うなづき
+  currentMixer?.update(deltaTime);
 
   renderer.render(scene, camera);
 }

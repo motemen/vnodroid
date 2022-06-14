@@ -8,3 +8,9 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
 }
+
+#controls {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+}
