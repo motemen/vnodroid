@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { VRM } from "@pixiv/three-vrm";
 
 import "./style.css";
@@ -28,8 +29,14 @@ scene.add(directionalLight);
 
 // camera.position.z = 2;
 camera.position.y = 1.2;
-camera.position.z = -0.8;
+camera.position.z = -1;
 camera.rotation.y = Math.PI * 1;
+
+// camera controls
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.screenSpacePanning = true;
+controls.target.set(0.0, 1.0, 0.0);
+controls.update();
 
 const loader = new GLTFLoader();
 loader.load(
