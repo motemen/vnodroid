@@ -12,13 +12,28 @@ function startRecognition() {
   recog.interimResults = true;
   recog.lang = "ja-JP";
   recog.continuous = true;
+  recog.addEventListener("soundstart", () => {
+    console.log("onsoundstart");
+  });
   recog.addEventListener("soundend", () => {
     console.log("onsoundend");
   });
+  recog.addEventListener("nomatch", () => {
+    console.log("nomatch");
+  });
+  recog.addEventListener("error", () => {
+    console.log("error");
+  });
   recog.onresult = (ev: any) => {
-    for (const result of ev.results) {
-      console.log(result[0].transcript);
-    }
+    // console.log(
+    //   ...[...ev.results].map((result) => [...result].map((r) => r.transcript))
+    // );
+    const isFinal = ev.results[ev.results.length - 1].isFinal;
+    console.log(
+      { isFinal },
+      ...[...ev.results[ev.results.length - 1]].map((r) => r.transcript)
+    );
+    if (isFinal) currentAction?.reset().play();
   };
   recog.onend = (ev: any) => {
     console.log("onend", ev);
@@ -32,7 +47,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 document.querySelector("#app")!.appendChild(renderer.domElement);
 document
-  .querySelector("#controls button#move")!
+  .querySelector("#controls button#nod")!
   .addEventListener("click", (ev) => {
     // prepareAnimation(currentVrm!);
     currentAction?.reset().play();
@@ -103,6 +118,12 @@ loader.load(
 
     vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Hips)!.rotation.y =
       Math.PI;
+    vrm.humanoid!.getBoneNode(
+      VRMSchema.HumanoidBoneName.LeftUpperArm
+    )!.rotation.z = Math.PI / 3;
+    vrm.humanoid!.getBoneNode(
+      VRMSchema.HumanoidBoneName.RightUpperArm
+    )!.rotation.z = -Math.PI / 3;
     vrm.springBoneManager!.reset();
 
     vrm.lookAt!.target! = camera;
@@ -126,18 +147,24 @@ loader.load(
 function prepareAnimation(vrm: VRM) {
   currentMixer = new THREE.AnimationMixer(vrm.scene);
 
-  const quatA = new THREE.Quaternion();
-  const quatB = new THREE.Quaternion().setFromEuler(
-    new THREE.Euler(-0.08 * Math.PI, 0.0, 0.0)
-  );
-
-  const headTrack = new THREE.QuaternionKeyframeTrack(
-    vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Head)!.name +
+  const nodTrack = new THREE.QuaternionKeyframeTrack(
+    vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Neck)!.name +
       ".quaternion", // name
-    [0.0, 0.45, 0.9], // times
-    [...quatA.toArray(), ...quatB.toArray(), ...quatA.toArray()] // values
+    [0.0, 0.15, 0.35, 0.6, 0.9], // times
+    [
+      ...new THREE.Quaternion().toArray(),
+      ...new THREE.Quaternion()
+        .setFromEuler(new THREE.Euler(-0.08 * Math.PI, 0.0, 0.0))
+        .toArray(),
+      ...new THREE.Quaternion().toArray(),
+      ...new THREE.Quaternion()
+        .setFromEuler(new THREE.Euler(-0.08 * Math.PI, 0.0, 0.0))
+        .toArray(),
+      ...new THREE.Quaternion().toArray(),
+    ] // values
   );
 
+  /*
   const blinkTrack = new THREE.NumberKeyframeTrack(
     vrm.blendShapeProxy!.getBlendShapeTrackName(
       VRMSchema.BlendShapePresetName.Blink
@@ -145,8 +172,10 @@ function prepareAnimation(vrm: VRM) {
     [0.0, 0.45, 0.9], // times
     [0.0, 1.0, 0.0] // values
   );
+  */
 
-  const clip = new THREE.AnimationClip("blink", 0.9, [headTrack, blinkTrack]);
+  // const clip = new THREE.AnimationClip("blink", 0.9, [headTrack, blinkTrack]);
+  const clip = new THREE.AnimationClip("blink", 1.0, [nodTrack]);
   const action = currentMixer.clipAction(clip);
   action.setLoop(THREE.LoopOnce, 1);
   action.play();
@@ -171,6 +200,23 @@ function animate() {
   currentVrm?.update(deltaTime);
   // うなづき
   currentMixer?.update(deltaTime);
+
+  currentVrm?.blendShapeProxy?.setValue(
+    VRMSchema.BlendShapePresetName.Blink,
+    Math.sin((clock.elapsedTime * 1) / 3) ** 1024 +
+      Math.sin((clock.elapsedTime * 4) / 7) ** 1024
+  );
+
+  currentVrm?.humanoid;
+  currentVrm?.humanoid
+    ?.getBoneNode(VRMSchema.HumanoidBoneName.Spine)
+    ?.setRotationFromEuler(
+      new THREE.Euler(
+        ((1 - Math.sin((clock.elapsedTime * 4) / 5) ** 4) * Math.PI) / 150,
+        0.0,
+        0.0
+      )
+    );
 
   renderer.render(scene, camera);
 }
