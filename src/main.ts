@@ -5,6 +5,11 @@ import { VRM, VRMUtils, VRMSchema } from "@pixiv/three-vrm";
 import { debounce } from "debounce";
 
 import "./style.css";
+import {
+  applyBlinkMotion,
+  applyBreathMotion,
+  buildNodMotionTracks,
+} from "./motion";
 
 declare var webkitSpeechRecognition: any;
 
@@ -17,10 +22,12 @@ const Config = {
 // TODO: sync with eyes
 let enabled: boolean = false;
 
+// TODO: PnP
+
 function startRecognition() {
   const recog = new webkitSpeechRecognition();
   recog.interimResults = true;
-  recog.lang = "ja-JP";
+  // recog.lang = "ja-JP";
   recog.continuous = true;
   recog.addEventListener("soundstart", () => {
     console.log("onsoundstart");
@@ -41,9 +48,6 @@ function startRecognition() {
     }
   }, Config.speakingDebounceDelay);
   recog.onresult = (ev: any) => {
-    // console.log(
-    //   ...[...ev.results].map((result) => [...result].map((r) => r.transcript))
-    // );
     const isFinal = ev.results[ev.results.length - 1].isFinal;
     console.log(
       { isFinal },
@@ -61,12 +65,12 @@ function startRecognition() {
     startRecognition();
   };
   recog.start();
+  // TODO: stop current
 }
 
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
@@ -76,17 +80,6 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 
 document.querySelector("#app")!.appendChild(renderer.domElement);
-document
-  .querySelector("#controls button#nod")!
-  .addEventListener("click", (ev) => {
-    nod();
-  });
-
-document
-  .querySelector("#controls button#recog")!
-  .addEventListener("click", (ev) => {
-    startRecognition();
-  });
 
 // camera
 const camera = new THREE.PerspectiveCamera(
@@ -95,20 +88,15 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   20.0
 );
-camera.position.set(0.0, 1.3, 1.0);
 
 // camera controls
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.screenSpacePanning = true;
-controls.target.set(0.0, 1.3, 0.0);
-controls.update();
 
 // scene
 const scene = new THREE.Scene();
 
 // light
 const light = new THREE.DirectionalLight(0xffffff);
-light.position.set(1.0, 1.0, 1.0).normalize();
 scene.add(light);
 
 let currentVrm: VRM | undefined;
@@ -138,23 +126,22 @@ loader.load(
     const eyePositionY = vrm.firstPerson?.firstPersonBone.getWorldPosition(
       new THREE.Vector3()
     ).y!;
-
-    controls.target.set(0.0, eyePositionY, 0.0);
     camera.position.set(0.0, eyePositionY, 1.0);
-
+    controls.target.set(0.0, eyePositionY, 0.0);
     controls.update();
 
-    vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Hips)!.rotation.y =
-      Math.PI;
-    vrm.humanoid!.getBoneNode(
-      VRMSchema.HumanoidBoneName.LeftUpperArm
-    )!.rotation.z = Math.PI / 3;
-    vrm.humanoid!.getBoneNode(
-      VRMSchema.HumanoidBoneName.RightUpperArm
-    )!.rotation.z = -Math.PI / 3;
-    vrm.springBoneManager!.reset();
-
     vrm.lookAt!.target! = camera;
+
+    vrm
+      .humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Hips)!
+      .rotateY(Math.PI);
+    vrm
+      .humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.LeftUpperArm)!
+      .rotateZ(Math.PI / 3);
+    vrm
+      .humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.RightUpperArm)!
+      .rotateZ(-Math.PI / 3);
+    vrm.springBoneManager!.reset();
 
     prepareAnimation(vrm);
 
@@ -174,9 +161,10 @@ loader.load(
 );
 
 let nodActions: THREE.AnimationAction[] | undefined;
+
 function nod() {
-  if (!nodActions) return;
   currentAction?.reset();
+  if (!nodActions) return;
   currentAction = nodActions[Math.floor(Math.random() * nodActions.length)];
   currentAction.play();
 }
@@ -185,49 +173,11 @@ function nod() {
 function prepareAnimation(vrm: VRM) {
   currentMixer = new THREE.AnimationMixer(vrm.scene);
 
-  const nodTrack = new THREE.QuaternionKeyframeTrack(
-    `${
-      vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Neck)!.name
-    }.quaternion`,
-    [0.0, 0.15, 0.35, 0.6, 0.9], // times
-    [
-      ...new THREE.Quaternion().toArray(),
-      ...new THREE.Quaternion()
-        .setFromEuler(new THREE.Euler(-0.06 * Math.PI, 0.0, 0.0))
-        .toArray(),
-      ...new THREE.Quaternion().toArray(),
-      ...new THREE.Quaternion()
-        .setFromEuler(new THREE.Euler(-0.06 * Math.PI, 0.0, 0.0))
-        .toArray(),
-      ...new THREE.Quaternion().toArray(),
-    ] // values
+  nodActions = buildNodMotionTracks(vrm).map((track) =>
+    currentMixer!
+      .clipAction(new THREE.AnimationClip("nod", undefined, [track]))
+      .setLoop(THREE.LoopOnce, 1)
   );
-
-  const nodTrack2 = new THREE.QuaternionKeyframeTrack(
-    `${
-      vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Neck)!.name
-    }.quaternion`,
-    [0.0, 0.35, 0.45, 0.8],
-    [
-      ...new THREE.Quaternion().toArray(),
-      ...new THREE.Quaternion()
-        .setFromEuler(new THREE.Euler(-0.09 * Math.PI, 0.0, 0.0))
-        .toArray(),
-      ...new THREE.Quaternion()
-        .setFromEuler(new THREE.Euler(-0.08 * Math.PI, 0.0, 0.0))
-        .toArray(),
-      ...new THREE.Quaternion().toArray(),
-    ]
-  );
-
-  const nodAction = currentMixer
-    .clipAction(new THREE.AnimationClip("nod", 1.0, [nodTrack]))
-    .setLoop(THREE.LoopOnce, 1);
-  const nodAction2 = currentMixer
-    .clipAction(new THREE.AnimationClip("nod", 1.0, [nodTrack2]))
-    .setLoop(THREE.LoopOnce, 1);
-
-  nodActions = [nodAction, nodAction2];
 }
 
 // helpers
@@ -239,34 +189,29 @@ scene.add(axesHelper);
 
 const clock = new THREE.Clock();
 
-function animate() {
-  requestAnimationFrame(animate);
+function tick() {
+  requestAnimationFrame(tick);
+
+  applyBlinkMotion(currentVrm, clock);
+  applyBreathMotion(currentVrm, clock);
 
   const deltaTime = clock.getDelta();
-
-  // うなづき
   currentMixer?.update(deltaTime);
-
-  currentVrm?.blendShapeProxy?.setValue(
-    VRMSchema.BlendShapePresetName.Blink,
-    Math.sin((clock.elapsedTime * 1) / 3) ** 1024 +
-      Math.sin((clock.elapsedTime * 4) / 7) ** 1024
-  );
-
-  currentVrm?.humanoid
-    ?.getBoneNode(VRMSchema.HumanoidBoneName.Spine)
-    ?.setRotationFromEuler(
-      new THREE.Euler(
-        ((0.8 - Math.sin(clock.elapsedTime) ** 4) * Math.PI) / 170,
-        0.0,
-        0.0
-      )
-    );
-
-  // まばたき
   currentVrm?.update(deltaTime);
 
   renderer.render(scene, camera);
 }
 
-animate();
+tick();
+
+document
+  .querySelector("#controls button#nod")!
+  .addEventListener("click", () => {
+    nod();
+  });
+
+document
+  .querySelector("#controls button#recog")!
+  .addEventListener("click", () => {
+    startRecognition();
+  });
