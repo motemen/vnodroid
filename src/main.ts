@@ -2,10 +2,20 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { VRM, VRMUtils, VRMSchema } from "@pixiv/three-vrm";
+import { debounce } from "debounce";
 
 import "./style.css";
 
 declare var webkitSpeechRecognition: any;
+
+// TODO: slider UI
+const Config = {
+  speakingDebounceDelay: 200,
+  speakingChance: 0.1,
+};
+
+// TODO: sync with eyes
+let enabled: boolean = false;
 
 function startRecognition() {
   const recog = new webkitSpeechRecognition();
@@ -21,9 +31,15 @@ function startRecognition() {
   recog.addEventListener("nomatch", () => {
     console.log("nomatch");
   });
-  recog.addEventListener("error", () => {
-    console.log("error");
+  recog.addEventListener("error", (ev: any) => {
+    console.log("error", ev);
   });
+  const nodRandomly = debounce(() => {
+    console.log("debounce");
+    if (Math.random() < Config.speakingChance) {
+      nod();
+    }
+  }, Config.speakingDebounceDelay);
   recog.onresult = (ev: any) => {
     // console.log(
     //   ...[...ev.results].map((result) => [...result].map((r) => r.transcript))
@@ -31,26 +47,39 @@ function startRecognition() {
     const isFinal = ev.results[ev.results.length - 1].isFinal;
     console.log(
       { isFinal },
-      ...[...ev.results[ev.results.length - 1]].map((r) => r.transcript)
+      ev.results.length,
+      ev.results[ev.results.length - 1][0].transcript
     );
-    if (isFinal) currentAction?.reset().play();
+    if (isFinal) {
+      nod();
+    } else {
+      nodRandomly();
+    }
   };
   recog.onend = (ev: any) => {
     console.log("onend", ev);
+    startRecognition();
   };
   recog.start();
 }
+
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
 
 // renderer
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
+
 document.querySelector("#app")!.appendChild(renderer.domElement);
 document
   .querySelector("#controls button#nod")!
   .addEventListener("click", (ev) => {
-    // prepareAnimation(currentVrm!);
-    currentAction?.reset().play();
+    nod();
   });
 
 document
@@ -101,7 +130,6 @@ loader.load(
 
     // generate VRM instance from gltf
     const vrm = await VRM.from(gltf);
-    console.log(vrm);
     scene.add(vrm.scene);
 
     currentVrm = vrm;
@@ -129,6 +157,8 @@ loader.load(
     vrm.lookAt!.target! = camera;
 
     prepareAnimation(vrm);
+
+    startRecognition();
   },
 
   // called while loading is progressing
@@ -143,43 +173,61 @@ loader.load(
   (error) => console.error(error)
 );
 
+let nodActions: THREE.AnimationAction[] | undefined;
+function nod() {
+  if (!nodActions) return;
+  currentAction?.reset();
+  currentAction = nodActions[Math.floor(Math.random() * nodActions.length)];
+  currentAction.play();
+}
+
 // animation
 function prepareAnimation(vrm: VRM) {
   currentMixer = new THREE.AnimationMixer(vrm.scene);
 
   const nodTrack = new THREE.QuaternionKeyframeTrack(
-    vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Neck)!.name +
-      ".quaternion", // name
+    `${
+      vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Neck)!.name
+    }.quaternion`,
     [0.0, 0.15, 0.35, 0.6, 0.9], // times
     [
       ...new THREE.Quaternion().toArray(),
       ...new THREE.Quaternion()
-        .setFromEuler(new THREE.Euler(-0.08 * Math.PI, 0.0, 0.0))
+        .setFromEuler(new THREE.Euler(-0.06 * Math.PI, 0.0, 0.0))
         .toArray(),
       ...new THREE.Quaternion().toArray(),
       ...new THREE.Quaternion()
-        .setFromEuler(new THREE.Euler(-0.08 * Math.PI, 0.0, 0.0))
+        .setFromEuler(new THREE.Euler(-0.06 * Math.PI, 0.0, 0.0))
         .toArray(),
       ...new THREE.Quaternion().toArray(),
     ] // values
   );
 
-  /*
-  const blinkTrack = new THREE.NumberKeyframeTrack(
-    vrm.blendShapeProxy!.getBlendShapeTrackName(
-      VRMSchema.BlendShapePresetName.Blink
-    )!, // name
-    [0.0, 0.45, 0.9], // times
-    [0.0, 1.0, 0.0] // values
+  const nodTrack2 = new THREE.QuaternionKeyframeTrack(
+    `${
+      vrm.humanoid!.getBoneNode(VRMSchema.HumanoidBoneName.Neck)!.name
+    }.quaternion`,
+    [0.0, 0.35, 0.45, 0.8],
+    [
+      ...new THREE.Quaternion().toArray(),
+      ...new THREE.Quaternion()
+        .setFromEuler(new THREE.Euler(-0.09 * Math.PI, 0.0, 0.0))
+        .toArray(),
+      ...new THREE.Quaternion()
+        .setFromEuler(new THREE.Euler(-0.08 * Math.PI, 0.0, 0.0))
+        .toArray(),
+      ...new THREE.Quaternion().toArray(),
+    ]
   );
-  */
 
-  // const clip = new THREE.AnimationClip("blink", 0.9, [headTrack, blinkTrack]);
-  const clip = new THREE.AnimationClip("blink", 1.0, [nodTrack]);
-  const action = currentMixer.clipAction(clip);
-  action.setLoop(THREE.LoopOnce, 1);
-  action.play();
-  currentAction = action;
+  const nodAction = currentMixer
+    .clipAction(new THREE.AnimationClip("nod", 1.0, [nodTrack]))
+    .setLoop(THREE.LoopOnce, 1);
+  const nodAction2 = currentMixer
+    .clipAction(new THREE.AnimationClip("nod", 1.0, [nodTrack2]))
+    .setLoop(THREE.LoopOnce, 1);
+
+  nodActions = [nodAction, nodAction2];
 }
 
 // helpers
@@ -196,8 +244,6 @@ function animate() {
 
   const deltaTime = clock.getDelta();
 
-  // まばたき
-  currentVrm?.update(deltaTime);
   // うなづき
   currentMixer?.update(deltaTime);
 
@@ -207,16 +253,18 @@ function animate() {
       Math.sin((clock.elapsedTime * 4) / 7) ** 1024
   );
 
-  currentVrm?.humanoid;
   currentVrm?.humanoid
     ?.getBoneNode(VRMSchema.HumanoidBoneName.Spine)
     ?.setRotationFromEuler(
       new THREE.Euler(
-        ((1 - Math.sin((clock.elapsedTime * 4) / 5) ** 4) * Math.PI) / 150,
+        ((0.8 - Math.sin(clock.elapsedTime) ** 4) * Math.PI) / 170,
         0.0,
         0.0
       )
     );
+
+  // まばたき
+  currentVrm?.update(deltaTime);
 
   renderer.render(scene, camera);
 }
