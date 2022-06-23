@@ -11,7 +11,7 @@ import { createTalkListener } from "./listen";
 // TODO: slider UI
 const Config = {
   speakingDebounceDelay: 200,
-  speakingChance: 0.1,
+  speakingChance: 0.05,
 };
 
 // TODO: sync with eyes
@@ -118,11 +118,6 @@ function nod() {
 }
 
 // helpers
-const gridHelper = new THREE.GridHelper(10, 10);
-scene.add(gridHelper);
-
-const axesHelper = new THREE.AxesHelper(5);
-scene.add(axesHelper);
 
 const clock = new THREE.Clock();
 
