@@ -11,13 +11,8 @@ import { createTalkListener } from "./listen";
 // TODO: slider UI
 const Config = {
   speakingDebounceDelay: 200,
-  speakingChance: 0.05,
+  speakingChance: 0.1,
 };
-
-// TODO: sync with eyes
-let enabled: boolean = false;
-
-// TODO: PnP
 
 const nodRandomly = debounce(() => {
   if (Math.random() < Config.speakingChance) {
@@ -43,6 +38,25 @@ renderer.setPixelRatio(window.devicePixelRatio);
 
 document.querySelector("#app")!.appendChild(renderer.domElement);
 
+const model = new URL(location.href).searchParams.get("model") || "./models/AvatarSample_A.vrm";
+
+const modelSelectEl = document.querySelector<HTMLSelectElement>("select#select-model")!;
+modelSelectEl.querySelectorAll("option").forEach((el) => {
+  if (el.value === model) {
+    el.selected = true;
+  }
+});
+
+modelSelectEl.addEventListener("change", (ev) => {
+  let model: string | null = (ev.currentTarget as HTMLSelectElement).value;
+  if (!model) {
+    model = prompt("Model?");
+  }
+  if (model) {
+    location.href = `?model=${model}`;
+  }
+});
+
 // camera
 const camera = new THREE.PerspectiveCamera(30.0, window.innerWidth / window.innerHeight, 0.1, 20.0);
 
@@ -66,7 +80,7 @@ loader.crossOrigin = "anonymous";
 loader.load(
   // URL of the VRM you want to load
   // "/models/masawada.vrm",
-  "/models/AvatarSample_B.vrm",
+  model,
   // called when the resource is loaded
   async (gltf) => {
     // calling these functions greatly improves the performance
@@ -135,7 +149,3 @@ function tick() {
 }
 
 tick();
-
-document.querySelector("#controls button#nod")!.addEventListener("click", () => {
-  nod();
-});

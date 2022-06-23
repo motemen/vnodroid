@@ -6,6 +6,7 @@ export interface TalkListenerCallbacks {
 export interface TalkListener {
   start: () => void;
   stop: () => void;
+  updateCallbacks(callbacks: TalkListenerCallbacks): void;
 }
 
 export function createTalkListener(callbacks: TalkListenerCallbacks): TalkListener {
@@ -45,7 +46,7 @@ export function createTalkListener(callbacks: TalkListenerCallbacks): TalkListen
     recognition.start();
   });
   recognition.addEventListener("error", (ev: SpeechRecognitionErrorEvent) => {
-    console.error(ev.message);
+    console.error(ev);
   });
 
   return {
@@ -54,6 +55,9 @@ export function createTalkListener(callbacks: TalkListenerCallbacks): TalkListen
     },
     stop() {
       recognition.stop();
+    },
+    updateCallbacks(cbs: TalkListenerCallbacks) {
+      callbacks = cbs;
     },
   };
 }
