@@ -10,7 +10,7 @@ import { createTalkListener } from "./listen";
 
 // TODO: slider UI
 const Config = {
-  speakingDebounceDelay: 200,
+  speakingDebounceDelay: 250,
   speakingChance: 0.1,
 };
 
