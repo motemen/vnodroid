@@ -14,4 +14,10 @@ body {
   position: fixed;
   top: 20px;
   left: 20px;
+  opacity: 0.2;
+  transition: opacity 0.2s ease-in-out;
+}
+
+#controls:hover {
+  opacity: 1;
 }

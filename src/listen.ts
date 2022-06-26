@@ -1,15 +1,11 @@
-export interface TalkListenerCallbacks {
-  middle: () => void;
-  end: () => void;
-}
-
 export interface TalkListener {
   start: () => void;
   stop: () => void;
-  updateCallbacks(callbacks: TalkListenerCallbacks): void;
 }
 
-export function createTalkListener(callbacks: TalkListenerCallbacks): TalkListener {
+export type Callback = (arg: { text: string; isFinal: boolean }) => void;
+
+export function createTalkListener(callback: Callback): TalkListener {
   const recognition = new webkitSpeechRecognition();
   recognition.interimResults = true;
   recognition.continuous = true;
@@ -35,12 +31,9 @@ export function createTalkListener(callbacks: TalkListenerCallbacks): TalkListen
 
   recognition.addEventListener("result", (ev: SpeechRecognitionEvent) => {
     const isFinal = ev.results[ev.results.length - 1].isFinal;
-    console.log("result", { isFinal }, ev.results.length, ev.results[ev.results.length - 1][0].transcript);
-    if (isFinal) {
-      callbacks.end();
-    } else {
-      callbacks.middle();
-    }
+    console.log(`[speech${isFinal ? " finished" : ""}]`, ev.results[ev.results.length - 1][0].transcript);
+    const text = ev.results[ev.results.length - 1][0].transcript;
+    callback({ text, isFinal });
   });
   recognition.addEventListener("end", () => {
     recognition.start();
@@ -55,9 +48,6 @@ export function createTalkListener(callbacks: TalkListenerCallbacks): TalkListen
     },
     stop() {
       recognition.stop();
-    },
-    updateCallbacks(cbs: TalkListenerCallbacks) {
-      callbacks = cbs;
     },
   };
 }

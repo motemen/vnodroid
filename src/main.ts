@@ -8,21 +8,32 @@ import "./style.css";
 import { applyBlinkMotion, applyBreathMotion, buildNodMotionTracks } from "./motion";
 import { createTalkListener } from "./listen";
 
-// TODO: slider UI
+// TODO: make configurable
 const Config = {
-  speakingDebounceDelay: 250,
-  speakingChance: 0.1,
+  minNodInterval: 2000,
+  silenceDuringSpeech: {
+    minSilenceDuration: 500,
+    chance: 0.1,
+    minCharacters: 100,
+  },
 };
 
-const nodRandomly = debounce(() => {
-  if (Math.random() < Config.speakingChance) {
-    nod();
-  }
-}, Config.speakingDebounceDelay);
+const nodGentlely = debounce(nod, Config.minNodInterval, true);
 
-const talkListener = createTalkListener({
-  middle: nodRandomly,
-  end: nod,
+const nodWhileSilence = debounce((text: string) => {
+  console.debug("nodWhileSilence", text);
+  if (text.length < Config.silenceDuringSpeech.minCharacters) return;
+  if (Math.random() < Config.silenceDuringSpeech.chance) {
+    nodGentlely();
+  }
+}, Config.silenceDuringSpeech.minSilenceDuration);
+
+const talkListener = createTalkListener(({ text, isFinal }) => {
+  if (isFinal) {
+    nodGentlely();
+  } else {
+    nodWhileSilence(text);
+  }
 });
 
 window.addEventListener("resize", () => {
@@ -50,7 +61,7 @@ modelSelectEl.querySelectorAll("option").forEach((el) => {
 modelSelectEl.addEventListener("change", (ev) => {
   let model: string | null = (ev.currentTarget as HTMLSelectElement).value;
   if (!model) {
-    model = prompt("Model?");
+    model = prompt("Model URL?");
   }
   if (model) {
     location.href = `?model=${model}`;
@@ -115,8 +126,7 @@ loader.load(
     talkListener.start();
   },
 
-  // called while loading is progressing
-  (progress) => console.log("Loading model...", 100.0 * (progress.loaded / progress.total), "%"),
+  (_progress) => {},
 
   // called when loading has errors
   (error) => console.error(error)
@@ -125,8 +135,12 @@ loader.load(
 let nodActions: THREE.AnimationAction[] | undefined;
 
 function nod() {
-  currentAction?.reset();
   if (!nodActions) return;
+  if (currentAction?.isRunning()) {
+    console.debug("currentAction is running");
+    return;
+  }
+  currentAction?.reset();
   currentAction = nodActions[Math.floor(Math.random() * nodActions.length)];
   currentAction.play();
 }
